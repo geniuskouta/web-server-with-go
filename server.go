@@ -4,40 +4,32 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/hello" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
+func staticHandler(w http.ResponseWriter, r *http.Request) {
+	// Try to serve from ./static/pages first
+	pagesPath := filepath.Join("./static/pages", r.URL.Path)
+
+	if fileInfo, err := os.Stat(pagesPath); err == nil && fileInfo.IsDir() {
+		pagesPath = filepath.Join(pagesPath, "index.html")
+		http.ServeFile(w, r, pagesPath)
 		return
 	}
 
-	if r.Method != "GET" {
-		http.Error(w, "Method is not supported.", http.StatusNotFound)
+	// serve from ./static
+	staticPath := filepath.Join("./static", r.URL.Path)
+	if _, err := os.Stat(staticPath); err == nil {
+		http.ServeFile(w, r, staticPath)
 		return
 	}
 
-	fmt.Fprintf(w, "Hello!")
-}
-
-func formHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		fmt.Fprintf(w, "ParseForm() err: %v", err)
-		return
-	}
-	fmt.Fprintf(w, "POST request successful")
-	name := r.FormValue("name")
-	address := r.FormValue("address")
-
-	fmt.Fprintf(w, "Name = %s\n", name)
-	fmt.Fprintf(w, "Address = %s\n", address)
+	http.NotFound(w, r)
 }
 
 func main() {
-	fileServer := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fileServer)
-	http.HandleFunc("/hello", helloHandler)
-	http.HandleFunc("/form", formHandler)
+	http.HandleFunc("/", staticHandler)
 
 	fmt.Printf("Starting server at port 8080\n")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
